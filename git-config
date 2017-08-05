@@ -1,3 +1,8 @@
 git config --global  user.name "Edy.Liu"
 git config user.name
 ~/.gitconfig
+
+# Auto-completion
+
+curl -OL https://github.com/git/git/raw/master/contrib/completion/git-completion.bash
+source ~/git-completion.bash to .bashrc or .bash_profile
