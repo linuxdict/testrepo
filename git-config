@@ -1,0 +1,3 @@
+git config --global  user.name "Edy.Liu"
+git config user.name
+~/.gitconfig
