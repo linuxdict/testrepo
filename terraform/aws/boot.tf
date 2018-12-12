@@ -12,20 +12,19 @@ resource "aws_vpc" "learn-terraform" {
   tags {
     Name  = "terraform-aws-learning"
     Usage = "This is test state file"
-    Tag3  = "This is another test"
   }
 }
 
 resource "aws_subnet" "subnet1" {
   cidr_block        = "${cidrsubnet(aws_vpc.learn-terraform.cidr_block, 3, 1)}"
   vpc_id            = "${aws_vpc.learn-terraform.id}"
-  availability_zone = "us-west-2a"
+  availability_zone = "${var.availability_zone["az1"]}"
 }
 
 resource "aws_subnet" "subnet2" {
   cidr_block        = "${cidrsubnet(aws_vpc.learn-terraform.cidr_block, 2, 2)}"
   vpc_id            = "${aws_vpc.learn-terraform.id}"
-  availability_zone = "us-west-2b"
+  availability_zone = "${var.availability_zone["az2"]}"
 }
 
 resource "aws_security_group" "subnetsec" {
@@ -88,10 +87,21 @@ data "aws_ami" "myami" {
   owners = ["309956199498"]
 }
 
-output "ami_id" {
-  value = "${data.aws_ami.myami.id}"
+provider "cloudflare" {
+  email = "${var.cloudflare_email}"
+  token = "${var.cloudflare_token}"
 }
 
-output "myproxy_ip" {
-  value = "${aws_instance.myproxy.public_ip}"
+# Create a record
+resource "cloudflare_record" "myproxy" {
+  domain = "${var.cloudflare_zone}"
+  # yjij = youjumpijump
+  name   = "yjij"
+  value  = "${aws_instance.myproxy.public_ip}"
+  type   = "A"
+  ttl    = 120
+}
+
+output "result" {
+  value = "Your proxy is ready for use : ${cloudflare_record.myproxy.name}.${cloudflare_record.myproxy.domain}"
 }

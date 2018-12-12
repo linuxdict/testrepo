@@ -2,6 +2,8 @@
 
 # Install squid
 
-yum install -y squid
+yum install -y squid 
+
 systemctl enable squid
+
 systemctl start squid 
