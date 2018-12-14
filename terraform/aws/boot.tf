@@ -4,48 +4,86 @@ provider "aws" {
   region     = "${var.region["region1"]}"
 }
 
-resource "aws_vpc" "learn-terraform" {
-  cidr_block           = "10.0.0.0/24"
+# Create Pr0xy vpc
+resource "aws_vpc" "pr0xy-vpc" {
+  cidr_block           = "172.17.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
 
   tags {
-    Name  = "terraform-aws-learning"
-    Usage = "This is test state file"
+    Name  = "pr0xy-vpc"
+    Usage = "This NOT is for my pr0xy"
   }
 }
 
-resource "aws_subnet" "subnet1" {
-  cidr_block        = "${cidrsubnet(aws_vpc.learn-terraform.cidr_block, 3, 1)}"
-  vpc_id            = "${aws_vpc.learn-terraform.id}"
-  availability_zone = "${var.availability_zone["az1"]}"
+# Create Internet GateWay to get outside world
+resource "aws_internet_gateway" "pr0xy-gw" {
+  vpc_id = "${aws_vpc.pr0xy-vpc.id}"
+
+  tags {
+    Name  = "My Pr0xy Gateway"
+    Usage = "Used for Pr0xy get out of the world"
+  }
 }
 
-resource "aws_subnet" "subnet2" {
-  cidr_block        = "${cidrsubnet(aws_vpc.learn-terraform.cidr_block, 2, 2)}"
-  vpc_id            = "${aws_vpc.learn-terraform.id}"
-  availability_zone = "${var.availability_zone["az2"]}"
+# Route table for VPC
+resource "aws_route_table" "pr0xy-rt" {
+  vpc_id = "${aws_vpc.pr0xy-vpc.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_internet_gateway.pr0xy-gw.id}"
+  }
+
+  tags {
+    Name = "Pr0xy Route table"
+  }
 }
 
-resource "aws_security_group" "subnetsec" {
-  vpc_id = "${aws_vpc.learn-terraform.id}"
+# Assicate the VPC and RouteTable
+resource "aws_main_route_table_association" "pr0xy-link" {
+  vpc_id         = "${aws_vpc.pr0xy-vpc.id}"
+  route_table_id = "${aws_route_table.pr0xy-rt.id}"
+}
+
+# Create Subnet for Pr0xy
+resource "aws_subnet" "pr0xy-subnet" {
+  cidr_block        = "${cidrsubnet(aws_vpc.pr0xy-vpc.cidr_block, 3, 1)}"
+  vpc_id            = "${aws_vpc.pr0xy-vpc.id}"
+  availability_zone = "${var.availability_zone["az3"]}"
+}
+
+resource "aws_security_group" "pr0xy-sg01" {
+  vpc_id      = "${aws_vpc.pr0xy-vpc.id}"
+  name        = "Allow_OpenSSH"
+  description = "Allow OpenSSH inbound traffic"
 
   ingress {
-    cidr_blocks = [
-      "${aws_vpc.learn-terraform.cidr_block}",
-    ]
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+  }
 
-    from_port = 80
-    to_port   = 80
-    protocol  = "tcp"
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags {
+    Name  = "Open SSH port to the world"
+    Usage = "Allow the SSH port to be accessed"
   }
 }
 
-data "template_file" "proxy-userdata" {
+data "template_file" "pr0xy-userdata" {
   template = "${file("${path.module}/files/myproxy.init.yml")}"
 }
 
-resource "aws_instance" "myproxy" {
+# Create EC2 instance for Pr0xy
+resource "aws_instance" "pr0xy" {
   # myproxy
   ami = "${data.aws_ami.myami.id}"
 
@@ -54,18 +92,19 @@ resource "aws_instance" "myproxy" {
   associate_public_ip_address = "${var.associate_public_ip_address}"
 
   key_name               = "${var.key_name}"
-  subnet_id              = "${var.subnet_id}"
-  vpc_security_group_ids = "${var.vpc_security_group_ids}"
+  subnet_id              = "${aws_subnet.pr0xy-subnet.id}"
+  vpc_security_group_ids = ["${aws_security_group.pr0xy-sg01.id}"]
   instance_type          = "t2.micro"
-  user_data              = "${data.template_file.proxy-userdata.rendered}"
+  user_data              = "${data.template_file.pr0xy-userdata.rendered}"
 
   tags {
     Date   = "2018-11"
-    Usage  = "myproxy"
+    Usage  = "Yep, this is not for Pr0xy"
     Expire = "2019-10"
   }
 }
 
+# Get latest RHEL-7 AMI for my pr0xy
 data "aws_ami" "myami" {
   most_recent = true
 
@@ -87,21 +126,23 @@ data "aws_ami" "myami" {
   owners = ["309956199498"]
 }
 
+# Update/Create DNS record in cloudflare for proxy server
 provider "cloudflare" {
   email = "${var.cloudflare_email}"
   token = "${var.cloudflare_token}"
 }
 
 # Create a record
-resource "cloudflare_record" "myproxy" {
+resource "cloudflare_record" "pr0xy" {
   domain = "${var.cloudflare_zone}"
+
   # yjij = youjumpijump
-  name   = "yjij"
-  value  = "${aws_instance.myproxy.public_ip}"
-  type   = "A"
-  ttl    = 120
+  name  = "yjij"
+  value = "${aws_instance.pr0xy.public_ip}"
+  type  = "A"
+  ttl   = 120
 }
 
 output "result" {
-  value = "Your proxy is ready for use : ${cloudflare_record.myproxy.name}.${cloudflare_record.myproxy.domain}"
+  value = "Your pr0xy is ready for use : ${cloudflare_record.pr0xy.name}.${cloudflare_record.pr0xy.domain}"
 }
